@@ -8,7 +8,10 @@ import AdminDashboard from "../pages/AdminDashboard";
 import Tournaments from "../pages/Tournament";
 import TournamentCreate from "../pages/TournamentCreate";
 import TournamentDetails from "../pages/TournamentDetails";
+import TournamentResults from "../pages/TournamentResults";
 
+import Leaderboard from "../pages/Leaderboard";
+import Profile from '../pages/Profile'
 import Auction from "../pages/Auction"; 
 import Navbar from "../components/Navbar";
 
@@ -55,7 +58,9 @@ const AppRoutes = () => {
         /> 
         {/* AUCTION */}
         <Route path="/auction/:id" element={<Auction />} />
-        
+        <Route path="/tournaments/:id/results" element={<TournamentResults />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </>
   );

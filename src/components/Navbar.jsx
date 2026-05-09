@@ -25,7 +25,6 @@ const Navbar = () => {
     
     { path: "/tournaments", label: "Tournaments", icon: "fas fa-trophy" },
     { path: "/leaderboard", label: "Leaderboard", icon: "fas fa-chart-line" },
-    { path: "/players", label: "Players", icon: "fas fa-users" },
   ];
 
   return (
@@ -144,19 +143,10 @@ const Navbar = () => {
                           <i className="fas fa-user-circle w-5"></i>
                           <span>My Profile</span>
                         </button>
+                        
                         <button
                           onClick={() => {
-                            navigate("/my-teams");
-                            setIsProfileDropdownOpen(false);
-                          }}
-                          className="w-full px-4 py-2 text-left text-purple-200 hover:bg-purple-600/20 transition flex items-center gap-3"
-                        >
-                          <i className="fas fa-users w-5"></i>
-                          <span>My Teams</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            navigate("/my-auctions");
+                            navigate("/tournaments");
                             setIsProfileDropdownOpen(false);
                           }}
                           className="w-full px-4 py-2 text-left text-purple-200 hover:bg-purple-600/20 transition flex items-center gap-3"

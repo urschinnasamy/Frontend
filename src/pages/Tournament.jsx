@@ -32,21 +32,19 @@ const Tournaments = () => {
     team_logo: "",
   });
 
-  // FETCH
-const fetchTournaments = async () => {
-  try {
-    setLoading(true);
-    const res = await API.get("/tournaments");
-
-    console.log("TOURNAMENTS API:", res.data); // 👈 IMPORTANT
-
-    setTournaments(res.data || []);
-  } catch (err) {
-    console.log(err);
-  } finally {
-    setLoading(false);
-  }
-};
+  // FETCH TOURNAMENTS
+  const fetchTournaments = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get("/tournaments");
+      console.log("TOURNAMENTS API:", res.data);
+      setTournaments(res.data || []);
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchTournaments();
@@ -57,13 +55,17 @@ const fetchTournaments = async () => {
     t.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // JOIN CHECK (IMPORTANT)
+  // JOIN CHECK - Check if user (owner or other) has joined
   const isUserJoined = (tournament) => {
     if (!tournament?.teams) return false;
-
     return tournament.teams.some(
       (team) => team.user_id === user?.id
     );
+  };
+
+  // Check if tournament has reached max teams
+  const isTournamentFull = (tournament) => {
+    return tournament.teams?.length >= tournament.max_teams;
   };
 
   // DELETE
@@ -78,26 +80,38 @@ const fetchTournaments = async () => {
     }
   };
 
-  // START AUCTION (OWNER)
+  // START AUCTION (OWNER ONLY)
   const startAuction = async (id) => {
-  try {
-    // 1. start auction via correct backend route
-    await API.put(`/auction/start/${id}`);
+    try {
+      console.log("Starting auction:", id);
 
-    alert("Auction Started 🚀");
+      const res = await API.put(`/auction/start/${id}`);
+      console.log("START RESPONSE:", res.data);
 
-    // 2. refresh list so status becomes "live"
-    await fetchTournaments();
+      await fetchTournaments();
 
-    // 3. go to auction page
-    navigate(`/auction/${id}`);
-  } catch (err) {
-    console.log(err);
-  }
-};
-  // JOIN
+      navigate(`/auction/${id}`);
+    } catch (err) {
+      console.log("START AUCTION ERROR:", err.response?.data || err.message);
+      alert(err.response?.data?.msg || "Failed to start auction");
+    }
+  };
+
+  // JOIN - Owner can also join (no restriction)
   const handleJoinTournament = async () => {
     try {
+      // Check if tournament is full
+      if (isTournamentFull(selectedTournament)) {
+        alert(`Tournament is full! Maximum ${selectedTournament.max_teams} teams allowed.`);
+        return;
+      }
+
+      // Check if already joined
+      if (isUserJoined(selectedTournament)) {
+        alert("You have already joined this tournament!");
+        return;
+      }
+
       await API.post("/teams", {
         tournament_id: selectedTournament.id,
         user_id: user.id,
@@ -105,10 +119,37 @@ const fetchTournaments = async () => {
         team_logo: joinForm.team_logo,
       });
 
-      alert("Joined successfully");
+      alert("✅ Joined successfully! You can now participate in the auction.");
       setIsJoinOpen(false);
+      setJoinForm({ team_name: "", team_logo: "" });
+      fetchTournaments(); // Refresh to show updated teams count
     } catch (err) {
       console.log(err);
+      alert(err.response?.data?.msg || "Failed to join tournament");
+    }
+  };
+
+  // Get status badge
+  const getStatusBadge = (status) => {
+    switch(status) {
+      case 'live':
+        return {
+          color: "bg-green-500/20 text-green-400 border-green-500/50",
+          icon: "fa-play-circle",
+          text: "LIVE"
+        };
+      case 'completed':
+        return {
+          color: "bg-gray-500/20 text-gray-400 border-gray-500/50",
+          icon: "fa-check-circle",
+          text: "COMPLETED"
+        };
+      default:
+        return {
+          color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/50",
+          icon: "fa-clock",
+          text: "UPCOMING"
+        };
     }
   };
 
@@ -176,128 +217,217 @@ const fetchTournaments = async () => {
       ) : (
         /* TOURNAMENT CARDS GRID */
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((t) => (
-            <div
-              key={t.id}
-              className="bg-white/5 backdrop-blur-lg border border-purple-500/20 rounded-2xl p-5 hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20 group"
-            >
-              {/* STATUS BADGE */}
-              <div className="flex justify-end mb-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  t.status === "live" 
-                    ? "bg-green-500/20 text-green-400 border border-green-500/50" 
-                    : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/50"
-                }`}>
-                  <i className={`fas ${t.status === "live" ? "fa-circle" : "fa-clock"} mr-1 text-xs`}></i>
-                  {t.status === "live" ? "LIVE" : "Upcoming"}
-                </span>
-              </div>
+          {filtered.map((t) => {
+            const statusBadge = getStatusBadge(t.status);
+            const isOwner = user?.id === t.created_by;
+            const hasJoined = isUserJoined(t);
+            const isLive = t.status === "live";
+            const isCompleted = t.status === "completed";
+            const isFull = isTournamentFull(t);
+            const canEnterAuction = isLive && (isOwner || hasJoined);
+            const canStartAuction = isOwner && t.status === "upcoming";
+            // Show join button for: upcoming tournaments, not full, and not already joined (owner can also join)
+            const canJoin = t.status === "upcoming" && !isFull && !hasJoined;
 
-              {/* TOURNAMENT INFO */}
-              <div className="text-center mb-4">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-fuchsia-600 rounded-2xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform duration-300">
-                  <i className="fas fa-trophy text-2xl text-white"></i>
+            return (
+              <div
+                key={t.id}
+                className={`bg-white/5 backdrop-blur-lg border rounded-2xl p-5 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20 group ${
+                  isCompleted ? "border-gray-500/20 opacity-80" : "border-purple-500/20 hover:scale-105"
+                }`}
+              >
+                {/* STATUS BADGE */}
+                <div className="flex justify-end mb-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusBadge.color}`}>
+                    <i className={`fas ${statusBadge.icon} mr-1 text-xs`}></i>
+                    {statusBadge.text}
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold text-purple-300 mb-2">
-                  {t.name}
-                </h2>
-                <p className="text-sm text-gray-400 flex items-center justify-center gap-2">
-                  <i className="fas fa-calendar-alt"></i>
-                  {new Date(t.auction_date).toLocaleDateString()}
-                </p>
-              </div>
 
-              {/* DETAILS GRID */}
-              <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-black/30 rounded-xl">
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Sport</p>
-                  <p className="text-sm font-semibold text-purple-300">
-                    <i className="fas fa-futbol mr-1"></i>
-                    {t.sport}
+                {/* TOURNAMENT INFO */}
+                <div className="text-center mb-4">
+                  <div className={`w-16 h-16 bg-gradient-to-br rounded-2xl flex items-center justify-center mx-auto mb-3 transition-transform duration-300 ${
+                    isCompleted ? "from-gray-600 to-gray-800" : "from-purple-600 to-fuchsia-600 group-hover:scale-110"
+                  }`}>
+                    <i className="fas fa-trophy text-2xl text-white"></i>
+                  </div>
+                  <h2 className="text-xl font-bold text-purple-300 mb-2">
+                    {t.name}
+                  </h2>
+                  <p className="text-sm text-gray-400 flex items-center justify-center gap-2">
+                    <i className="fas fa-calendar-alt"></i>
+                    {new Date(t.auction_date).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Max Teams</p>
-                  <p className="text-sm font-semibold text-purple-300">
-                    <i className="fas fa-users mr-1"></i>
-                    {t.max_teams}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Prize Pool</p>
-                  <p className="text-sm font-semibold text-yellow-400">
-                    <i className="fas fa-rupee-sign mr-1"></i>
-                    {Number(t.purse_amount).toLocaleString()}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-gray-400">Status</p>
-                  <p className={`text-sm font-semibold ${t.status === "live" ? "text-green-400" : "text-yellow-400"}`}>
-                    <i className={`fas ${t.status === "live" ? "fa-play" : "fa-hourglass-half"} mr-1`}></i>
-                    {t.status === "live" ? "Active" : "Ready"}
-                  </p>
-                </div>
-              </div>
 
-              {/* ACTION BUTTONS */}
-              <div className="space-y-2">
-                {/* VIEW BUTTON */}
-                <button
-                  onClick={() => navigate(`/tournaments/${t.id}`)}
-                  className="w-full bg-purple-600/20 border border-purple-500/50 hover:bg-purple-600 hover:border-purple-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-eye"></i>
-                  View Details
-                </button>
+                {/* DETAILS GRID */}
+                <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-black/30 rounded-xl">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">Sport</p>
+                    <p className="text-sm font-semibold text-purple-300">
+                      <i className="fas fa-futbol mr-1"></i>
+                      {t.sport}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">Max Teams</p>
+                    <p className="text-sm font-semibold text-purple-300">
+                      <i className="fas fa-users mr-1"></i>
+                      {t.max_teams}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">Prize Pool</p>
+                    <p className="text-sm font-semibold text-yellow-400">
+                      <i className="fas fa-rupee-sign mr-1"></i>
+                      {Number(t.purse_amount).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">Teams Joined</p>
+                    <p className="text-sm font-semibold text-purple-300">
+                      <i className="fas fa-users mr-1"></i>
+                      {t.teams?.length || 0}/{t.max_teams}
+                    </p>
+                  </div>
+                </div>
 
-                {/* JOIN BUTTON */}
-                <button
-                  onClick={() => {
-                    setSelectedTournament(t);
-                    setIsJoinOpen(true);
-                  }}
-                  className="w-full bg-fuchsia-600/20 border border-fuchsia-500/50 hover:bg-fuchsia-600 hover:border-fuchsia-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  <i className="fas fa-sign-in-alt"></i>
-                  Join Tournament
-                </button>
-
-                {/* START AUCTION (OWNER ONLY) */}
-                {user?.id === t.created_by && t.status !== "live" && (
-                  <button
-                    onClick={() => startAuction(t.id)}
-                    className="w-full bg-yellow-500 hover:bg-yellow-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-black font-semibold"
-                  >
-                    <i className="fas fa-play"></i>
-                    Start Auction
-                  </button>
+                {/* OWNER BADGE */}
+                {isOwner && (
+                  <div className="mb-3 text-center">
+                    <span className="text-xs bg-purple-500/30 text-purple-300 px-2 py-1 rounded-full">
+                      <i className="fas fa-crown mr-1"></i>
+                      Tournament Owner
+                    </span>
+                  </div>
                 )}
 
-                {/* ENTER AUCTION (ONLY LIVE + JOINED OR OWNER) */}
-                {t.status === "live" &&
-                  (user?.id === t.created_by || isUserJoined(t)) && (
+                {/* JOINED BADGE */}
+                {hasJoined && !isOwner && (
+                  <div className="mb-3 text-center">
+                    <span className="text-xs bg-green-500/30 text-green-400 px-2 py-1 rounded-full">
+                      <i className="fas fa-check-circle mr-1"></i>
+                      You have joined
+                    </span>
+                  </div>
+                )}
+
+                {/* ACTION BUTTONS */}
+                <div className="space-y-2">
+                  {/* VIEW BUTTON */}
+                  <button
+                    onClick={() => navigate(`/tournaments/${t.id}`)}
+                    className="w-full bg-purple-600/20 border border-purple-500/50 hover:bg-purple-600 hover:border-purple-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <i className="fas fa-eye"></i>
+                    View Details
+                  </button>
+
+                  {/* JOIN BUTTON - Owner can also join! */}
+                  {canJoin && (
+                    <button
+                      onClick={() => {
+                        setSelectedTournament(t);
+                        setIsJoinOpen(true);
+                      }}
+                      className="w-full bg-fuchsia-600/20 border border-fuchsia-500/50 hover:bg-fuchsia-600 hover:border-fuchsia-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <i className="fas fa-sign-in-alt"></i>
+                      {isOwner ? "Join as Team" : "Join Tournament"}
+                    </button>
+                  )}
+
+                  {/* FULL TOURNAMENT MESSAGE */}
+                  {t.status === "upcoming" && isFull && !hasJoined && (
+                    <div className="w-full bg-gray-600/20 border border-gray-500/50 py-2 rounded-xl text-center text-sm text-gray-400">
+                      <i className="fas fa-ban mr-1"></i>
+                      Tournament Full
+                    </div>
+                  )}
+
+                  {/* ALREADY JOINED MESSAGE */}
+                  {t.status === "upcoming" && hasJoined && !isOwner && (
+                    <div className="w-full bg-green-600/20 border border-green-500/50 py-2 rounded-xl text-center text-sm text-green-400">
+                      <i className="fas fa-check-circle mr-1"></i>
+                      You have joined this tournament
+                    </div>
+                  )}
+
+                  {/* OWNER JOINED MESSAGE */}
+                  {t.status === "upcoming" && hasJoined && isOwner && (
+                    <div className="w-full bg-green-600/20 border border-green-500/50 py-2 rounded-xl text-center text-sm text-green-400">
+                      <i className="fas fa-check-circle mr-1"></i>
+                      You have joined as a team
+                    </div>
+                  )}
+
+                  {/* START AUCTION BUTTON */}
+                  {canStartAuction && (
+                    <button
+                      onClick={() => startAuction(t.id)}
+                      className="w-full bg-yellow-500 hover:bg-yellow-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-black font-semibold"
+                    >
+                      <i className="fas fa-play"></i>
+                      Start Auction
+                    </button>
+                  )}
+
+                  {/* ENTER AUCTION BUTTON */}
+                  {canEnterAuction && (
                     <button
                       onClick={() => navigate(`/auction/${t.id}`)}
-                      className="w-full bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg"
+                      className="w-full bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-700 hover:to-fuchsia-700 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg animate-pulse"
                     >
                       <i className="fas fa-gavel"></i>
                       Enter Auction
                     </button>
                   )}
 
-                {/* DELETE BUTTON (OWNER ONLY) */}
-                {user?.id === t.created_by && (
-                  <button
-                    onClick={() => handleDelete(t.id, t.name)}
-                    className="w-full bg-red-600/20 border border-red-500/50 hover:bg-red-600 hover:border-red-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
-                  >
-                    <i className="fas fa-trash-alt"></i>
-                    Delete
-                  </button>
+                  {/* VIEW RESULTS BUTTON */}
+                  {isCompleted && (isOwner || hasJoined) && (
+                    <button
+                      onClick={() => navigate(`/tournaments/${t.id}/results`)}
+                      className="w-full bg-green-600/20 border border-green-500/50 hover:bg-green-600 hover:border-green-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <i className="fas fa-chart-line"></i>
+                      View Results
+                    </button>
+                  )}
+
+                  {/* DELETE BUTTON - Only for owner if no teams joined or auction not started */}
+                  {isOwner && t.status === "upcoming" && (
+                    <button
+                      onClick={() => handleDelete(t.id, t.name)}
+                      className="w-full bg-red-600/20 border border-red-500/50 hover:bg-red-600 hover:border-red-600 py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <i className="fas fa-trash-alt"></i>
+                      Delete Tournament
+                    </button>
+                  )}
+                </div>
+
+                {/* Completed Tournament Message */}
+                {isCompleted && (
+                  <div className="mt-3 p-2 bg-gray-800/50 rounded-lg text-center">
+                    <p className="text-xs text-gray-400">
+                      <i className="fas fa-check-circle mr-1 text-green-400"></i>
+                      Auction completed • {t.teams?.length || 0} teams participated
+                    </p>
+                  </div>
+                )}
+
+                {/* Live Tournament Message */}
+                {isLive && (
+                  <div className="mt-3 p-2 bg-green-800/30 rounded-lg text-center">
+                    <p className="text-xs text-green-400">
+                      <i className="fas fa-circle animate-pulse mr-1"></i>
+                      Auction in progress!
+                    </p>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -310,7 +440,7 @@ const fetchTournaments = async () => {
             <div className="flex justify-between items-center p-6 border-b border-purple-800">
               <h2 className="text-2xl font-bold text-purple-300 flex items-center gap-2">
                 <i className="fas fa-handshake"></i>
-                Join Tournament
+                {selectedTournament?.created_by === user?.id ? "Join as Team" : "Join Tournament"}
               </h2>
               <button
                 onClick={() => setIsJoinOpen(false)}
@@ -326,6 +456,15 @@ const fetchTournaments = async () => {
                 <p className="text-sm text-gray-400">Tournament</p>
                 <p className="text-white font-semibold">{selectedTournament?.name}</p>
               </div>
+
+              {selectedTournament?.created_by === user?.id && (
+                <div className="mb-4 p-3 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
+                  <p className="text-xs text-yellow-400 text-center">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    As the tournament owner, you can also create a team to participate!
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>
