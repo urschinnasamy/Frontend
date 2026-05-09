@@ -1,8 +1,8 @@
 // src/sockets/socket.js
 import { io } from "socket.io-client";
 
-const socket = io("https://auction-4k8p.onrender.com", {
-  transports: ["websocket"], // Force WebSocket to avoid CORS
+const socket = io("https://backend-86om.onrender.com", {
+  transports: ["polling", "websocket"], // Force WebSocket to avoid CORS
   withCredentials: true,
   autoConnect: true,
 });
