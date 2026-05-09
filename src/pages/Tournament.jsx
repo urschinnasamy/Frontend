@@ -245,7 +245,7 @@ const Tournaments = () => {
             const statusBadge = getStatusBadge(t.status);
             const isOwner = user?.id === t.created_by;
             const hasJoined = isUserJoined(t);
-            const isLive = t.status === "live";
+            const isLive = t.status === "live" || t.status === "ongoing" || t.status === "in_progress";
             const isCompleted = t.status === "completed";
             const isFull = isTournamentFull(t);
             // FIXED: Owners can always enter their live tournament even without joining
@@ -407,7 +407,6 @@ const Tournaments = () => {
                       Enter Auction
                     </button>
                   )}
-
                   {/* VIEW RESULTS BUTTON */}
                   {isCompleted && (isOwner || hasJoined) && (
                     <button
