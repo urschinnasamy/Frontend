@@ -241,7 +241,7 @@ const ProfileSettings = () => {
             Password
           </button>
           <button
-            onClick={() => setActiveTab="teams"}
+            onClick={() => setActiveTab("teams")}
             className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
               activeTab === "teams"
                 ? "bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white"
@@ -252,7 +252,7 @@ const ProfileSettings = () => {
             My Teams ({teams.length})
           </button>
           <button
-            onClick={() => setActiveTab="history"}
+            onClick={() => setActiveTab("history")}
             className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
               activeTab === "history"
                 ? "bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white"
