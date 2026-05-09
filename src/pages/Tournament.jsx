@@ -80,17 +80,41 @@ const Tournaments = () => {
     }
   };
 
-  // START AUCTION (OWNER ONLY)
+  // START AUCTION (OWNER ONLY) - FIXED VERSION
   const startAuction = async (id) => {
     try {
       console.log("Starting auction:", id);
 
+      // First, check if owner has already joined as a team
+      const tournament = tournaments.find(t => t.id === id);
+      const ownerHasJoined = tournament?.teams?.some(team => team.user_id === user?.id);
+      
+      // If owner hasn't joined, automatically create a team for them
+      if (!ownerHasJoined && tournament) {
+        try {
+          await API.post("/teams", {
+            tournament_id: id,
+            user_id: user.id,
+            team_name: `${user?.name || "Owner"}'s Team`,
+            team_logo: "",
+          });
+          console.log("Auto-created team for tournament owner");
+        } catch (teamError) {
+          console.log("Could not auto-create team:", teamError);
+        }
+      }
+
+      // Start the auction
       const res = await API.put(`/auction/start/${id}`);
       console.log("START RESPONSE:", res.data);
 
+      // Wait for tournaments to refresh
       await fetchTournaments();
-
-      navigate(`/auction/${id}`);
+      
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        navigate(`/auction/${id}`);
+      }, 300);
     } catch (err) {
       console.log("START AUCTION ERROR:", err.response?.data || err.message);
       alert(err.response?.data?.msg || "Failed to start auction");
@@ -224,6 +248,7 @@ const Tournaments = () => {
             const isLive = t.status === "live";
             const isCompleted = t.status === "completed";
             const isFull = isTournamentFull(t);
+            // FIXED: Owners can always enter their live tournament even without joining
             const canEnterAuction = isLive && (isOwner || hasJoined);
             const canStartAuction = isOwner && t.status === "upcoming";
             // Show join button for: upcoming tournaments, not full, and not already joined (owner can also join)
@@ -372,7 +397,7 @@ const Tournaments = () => {
                     </button>
                   )}
 
-                  {/* ENTER AUCTION BUTTON */}
+                  {/* ENTER AUCTION BUTTON - FIXED: This will now show for owners after starting auction */}
                   {canEnterAuction && (
                     <button
                       onClick={() => navigate(`/auction/${t.id}`)}
